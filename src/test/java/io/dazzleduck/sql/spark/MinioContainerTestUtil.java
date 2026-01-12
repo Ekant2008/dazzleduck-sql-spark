@@ -54,16 +54,18 @@ public class MinioContainerTestUtil {
         try (Stream<Path> files = Files.walk(dirPath)) {
             files.filter(Files::isRegularFile)
                     .forEach(file -> {
-                        String objectName = objectPrefix + dirPath.relativize(file);
+                        // Convert path separators to forward slashes for S3/MinIO
+                        String relativePath = dirPath.relativize(file).toString().replace("\\", "/");
+                        String objectName = objectPrefix + relativePath;
                         try {
                             uploadFile(minioClient, bucketName, objectName, file.toString());
+                            System.out.println("Uploaded: " + objectName); // Debug logging
                         } catch (IOException e) {
                             System.err.println("Error uploading file: " + file + ", error: " + e.getMessage());
                         }
                     });
         }
     }
-
     private static void uploadFile(MinioClient minioClient, String bucketName, String objectName, String filePath) throws IOException {
         File file = new File(filePath);
         try (FileInputStream fileInputStream = new FileInputStream(file)) {

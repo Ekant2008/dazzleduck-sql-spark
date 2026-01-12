@@ -27,6 +27,7 @@ public class DuckLakeQueryBuilderTest {
                 "localhost",
                 null,
                 "example",
+                "read_parquet",
                 List.of("p"),
                 Duration.ofMinutes(10),
                 new Properties(),

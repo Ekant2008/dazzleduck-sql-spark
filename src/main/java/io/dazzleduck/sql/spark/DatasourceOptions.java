@@ -8,6 +8,7 @@ public record DatasourceOptions(
         String url,
         String identifier,
         String path,
+        String function,
         List<String> partitionColumns,
         Duration connectionTimeout,
         Properties properties,
@@ -21,6 +22,7 @@ public record DatasourceOptions(
     public static final String IDENTIFIER_KEY = "identifier";
     public static final String PATH_KEY = "path";
     public static final String URL_KEY = "url";
+    public static final String FUNCTION = "function";
     public static final String PARTITION_COLUMNS_KEY = "partition_columns";
 
     public static final String CATALOG_KEY = "catalog";
@@ -29,7 +31,6 @@ public record DatasourceOptions(
 
     public static final Set<String> EXCLUDE_PROPS = Set.of(
             IDENTIFIER_KEY,
-            PATH_KEY,
             URL_KEY,
             PARTITION_COLUMNS_KEY,
             CONNECTION_TIMEOUT,
@@ -48,7 +49,7 @@ public record DatasourceOptions(
         var url        = properties.get(URL_KEY);
         var identifier = properties.get(IDENTIFIER_KEY);
         var path       = properties.get(PATH_KEY);
-
+        var function   = properties.get(FUNCTION);
         var catalog = properties.get(CATALOG_KEY);
         var schema  = properties.get(SCHEMA_KEY);
         var table   = properties.get(TABLE_KEY);
@@ -82,7 +83,7 @@ public record DatasourceOptions(
             }
         });
 
-        return new DatasourceOptions(url, identifier, path, partitionColumns, timeout, propsWithout, sourceType,
+        return new DatasourceOptions(url, identifier, path, function, partitionColumns, timeout, propsWithout, sourceType,
                                        catalog, schema, table);
     }
 

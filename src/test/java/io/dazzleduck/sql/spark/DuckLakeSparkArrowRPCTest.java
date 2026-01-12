@@ -73,19 +73,17 @@ public class DuckLakeSparkArrowRPCTest {
 
         spark = SparkInitializationHelper.createSparkSession(config);
         DuckDBInitializationHelper.initializeDuckDB(config);
-        FlightTestUtil.createFsServiceAnsStart(PORT);
+        FlightTestUtil.createFsServiceAnsStart2(PORT);
         createDuckLakeRPCTable(SCHEMA_DDL, RPC_TABLE, CATALOG, SCHEMA, TABLE);
     }
     private static void createDuckLakeRPCTable(String schemaDDL, String viewName, String catalog, String schema, String table) {
-
-        String identifier = catalog + "." + schema + "." + table;
 
         String sql = """
         CREATE TEMP VIEW %s (%s)
         USING %s
         OPTIONS (
           url '%s',
-          identifier '%s',
+          identifier 'null',
           catalog '%s',
           schema '%s',
           table '%s',
@@ -94,7 +92,7 @@ public class DuckLakeSparkArrowRPCTest {
           partition_columns 'partition',
           connection_timeout 'PT10M'
         )
-        """.formatted(viewName, schemaDDL, ArrowRPCTableProvider.class.getName(), URL, identifier,
+        """.formatted(viewName, schemaDDL, ArrowRPCTableProvider.class.getName(), URL,
                 catalog, schema, table, USER, PASSWORD);
 
         spark.sql(sql);

@@ -81,12 +81,12 @@ public class SparkFsArrowRPCTest {
         FlightTestUtil.createFsServiceAnsStart(port);
         String sparkPath = Paths.get(localPath).toUri().toString();
         createLocalTable(schemaDDL, localTable, sparkPath);
-        //createLocalTable(schemaDDL, s3Table, s3Path);
+        createLocalTable(schemaDDL, s3Table, s3Path);
         createLocalTable(schemaOfEvolutionTable, schemaEvolutionLocalTable, schemaEvolutionTablePath);
 
 
         createRPCTestTable(schemaDDL, rpcLocalPathTable, sparkPath, "partition" );
-        //createRPCTestTable(schemaDDL, rpcS3PathTable, s3Path, "partition");
+        createRPCTestTable(schemaDDL, rpcS3PathTable, s3Path, "partition");
         createRPCTestTable(schemaOfEvolutionTable, schemaEvolutionRpcTable, schemaEvolutionTablePath, "p");
     }
 
@@ -96,6 +96,7 @@ public class SparkFsArrowRPCTest {
                 "OPTIONS ( " +
                 "url '%s'," +
                 "path '%s'," +
+                "function 'read_parquet'," +
                 "username 'admin'," +
                 "password 'admin'," +
                 "partition_columns '%s'," +
@@ -181,17 +182,16 @@ public class SparkFsArrowRPCTest {
     }
 
     @Test
-    public void testRPCScan() {
+    public void testRPCScanRestricted() {
         var flightclient = FlightClient
                 .builder()
                 .allocator(new RootAllocator())
                 .location(Location.forGrpcInsecure("localhost", port))
-                .intercept(AuthUtils.createClientMiddlewareFactory("admin",
-                                "admin",
-                                Map.of())).build();
+                .intercept(AuthUtils.createClientMiddlewareFactory("admin", "admin", Map.of("path", "example/hive_table", "function", "read_parquet")))
+                .build();
 
-        var flightSqlClient = new FlightSqlClient( flightclient);
-        flightSqlClient.execute("select 1");
+        var flightSqlClient = new FlightSqlClient(flightclient);
+        flightSqlClient.execute("SELECT * FROM read_parquet('example/hive_table/*/*/*.parquet')");
     }
 
     @Test
