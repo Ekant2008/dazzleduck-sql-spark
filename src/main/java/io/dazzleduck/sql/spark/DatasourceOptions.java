@@ -22,10 +22,10 @@ public record DatasourceOptions(
     public static final String IDENTIFIER_KEY = "identifier";
     public static final String PATH_KEY = "path";
     public static final String URL_KEY = "url";
-    public static final String FUNCTION = "function";
+    public static final String FUNCTION_KEY = "function";
     public static final String PARTITION_COLUMNS_KEY = "partition_columns";
 
-    public static final String CATALOG_KEY = "catalog";
+    public static final String DATABASE_KEY = "database";
     public static final String SCHEMA_KEY  = "schema";
     public static final String TABLE_KEY   = "table";
 
@@ -33,10 +33,7 @@ public record DatasourceOptions(
             IDENTIFIER_KEY,
             URL_KEY,
             PARTITION_COLUMNS_KEY,
-            CONNECTION_TIMEOUT,
-            CATALOG_KEY,
-            SCHEMA_KEY,
-            TABLE_KEY
+            CONNECTION_TIMEOUT
     );
 
     public enum SourceType {
@@ -49,8 +46,8 @@ public record DatasourceOptions(
         var url        = properties.get(URL_KEY);
         var identifier = properties.get(IDENTIFIER_KEY);
         var path       = properties.get(PATH_KEY);
-        var function   = properties.get(FUNCTION);
-        var catalog = properties.get(CATALOG_KEY);
+        var function   = properties.get(FUNCTION_KEY);
+        var catalog = properties.get(DATABASE_KEY);
         var schema  = properties.get(SCHEMA_KEY);
         var table   = properties.get(TABLE_KEY);
 

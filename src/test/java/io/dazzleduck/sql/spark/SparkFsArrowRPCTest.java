@@ -1,6 +1,7 @@
 package io.dazzleduck.sql.spark;
 
 import com.typesafe.config.ConfigFactory;
+import io.dazzleduck.sql.common.Headers;
 import io.dazzleduck.sql.flight.server.auth2.AuthUtils;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -196,12 +197,26 @@ public class SparkFsArrowRPCTest {
 
     @Test
     public void testConnectionPool() throws Exception {
-        var options = DatasourceOptions.parse(Map.of("url", url, "connection_timeout", "PT10M"));
 
-        var schema = "\"1\"  string";
+        var options = DatasourceOptions.parse(Map.of(
+                "url", url,
+                "connection_timeout", "PT10M",
+                "username", "admin",
+                "password", "admin",
+                "path", localPath,
+                "function", "read_parquet",
+                "parallelize", "true"
+        ));
+
+        // Headers should match the options
         var headers = new FlightCallHeaders();
+        headers.insert(Headers.HEADER_PATH, localPath);
+        headers.insert(Headers.HEADER_FUNCTION, "read_parquet");
         var schemaOption = new HeaderCallOption(headers);
-        var info = FlightSqlClientPool.INSTANCE.getInfo(options, "select 1", schemaOption);
+
+        // Use a query that actually works with your parquet files
+        var info = FlightSqlClientPool.INSTANCE.getInfo(options, "SELECT * FROM read_parquet('" + localPath + "/**/*.parquet')", schemaOption);
+
         Assertions.assertNotNull(info);
         try( var stream = FlightSqlClientPool.INSTANCE.getStream(options, info.getEndpoints().get(0))) {
 

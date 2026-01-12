@@ -18,15 +18,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 public class DuckLakeSparkArrowRPCTest {
 
     private static SparkSession spark;
     private static Path workspace;
 
     private static final int PORT = 33335;
+    private static final int PORT2 = 33338;
     private static final String USER = "admin";
     private static final String PASSWORD = "admin";
 
@@ -35,7 +33,7 @@ public class DuckLakeSparkArrowRPCTest {
     private static final String TABLE = "tt_p";
 
     private static final String RPC_TABLE = "rpc_tt_p";
-    private static final String URL = "jdbc:arrow-flight-sql://localhost:" + PORT + "?useEncryption=false&disableCertificateVerification=true" + "&user=" + USER + "&password=" + PASSWORD;
+    private static final String URL = "jdbc:arrow-flight-sql://localhost:" + PORT + "?useEncryption=false&disableCertificateVerification=true&disableSessionCatalog=true" + "&user=" + USER + "&password=" + PASSWORD;
     private static final String SCHEMA_DDL = "key string, value string, partition int";
 
     @BeforeAll
@@ -73,7 +71,8 @@ public class DuckLakeSparkArrowRPCTest {
 
         spark = SparkInitializationHelper.createSparkSession(config);
         DuckDBInitializationHelper.initializeDuckDB(config);
-        FlightTestUtil.createFsServiceAnsStart2(PORT);
+        FlightTestUtil.createFsServiceAnsStart(PORT);
+        FlightTestUtil.createFsServiceAnsStart2(PORT2);
         createDuckLakeRPCTable(SCHEMA_DDL, RPC_TABLE, CATALOG, SCHEMA, TABLE);
     }
     private static void createDuckLakeRPCTable(String schemaDDL, String viewName, String catalog, String schema, String table) {
@@ -84,7 +83,7 @@ public class DuckLakeSparkArrowRPCTest {
         OPTIONS (
           url '%s',
           identifier 'null',
-          catalog '%s',
+          database '%s',
           schema '%s',
           table '%s',
           username '%s',
@@ -115,10 +114,41 @@ public class DuckLakeSparkArrowRPCTest {
     }
 
     @Test
+    void testSimpleFilterByKey() {
+
+        long sparkCount = spark.sql(String.format("SELECT count(*) FROM %s WHERE key = 'k51'", RPC_TABLE)).first().getLong(0);
+        Assertions.assertEquals(1, sparkCount);
+        var result = spark.sql(String.format("SELECT key, value, partition FROM %s WHERE key = 'k51'", RPC_TABLE)).first();
+
+        Assertions.assertEquals("k51", result.getString(0));
+        Assertions.assertEquals("v51", result.getString(1));
+        Assertions.assertEquals(1, result.getInt(2));
+    }
+
+    @Test
+    void testFilterByPartition() {
+
+        long partition0Count = spark.sql(String.format("SELECT count(*) FROM %s WHERE partition = 0", RPC_TABLE)).first().getLong(0);
+        Assertions.assertEquals(2, partition0Count);
+        long partition1Count = spark.sql(String.format("SELECT count(*) FROM %s WHERE partition = 1", RPC_TABLE)).first().getLong(0);
+        Assertions.assertEquals(2, partition1Count);
+    }
+
+    @Test
+    void testMultipleConditions() {
+        var result = spark.sql(String.format("SELECT * FROM %s WHERE key = 'k51' AND partition = 1", RPC_TABLE)).collectAsList();
+
+        Assertions.assertEquals(1, result.size());
+        Assertions.assertEquals("k51", result.get(0).getString(0));
+        Assertions.assertEquals("v51", result.get(0).getString(1));
+        Assertions.assertEquals(1, result.get(0).getInt(2));
+    }
+
+    @Test
     void testFlightSqlDirectly() {
         var client = FlightClient.builder()
                 .allocator(new RootAllocator())
-                .location(Location.forGrpcInsecure("localhost", PORT))
+                .location(Location.forGrpcInsecure("localhost", PORT2))
                 .intercept(AuthUtils.createClientMiddlewareFactory(USER, PASSWORD, Map.of()))
                 .build();
 
