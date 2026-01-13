@@ -2,6 +2,11 @@
 
 This guide explains how to set up and query DazzleDuck tables using Apache Spark SQL with Arrow Flight SQL.
 
+## Overview
+DazzleDuck leverages Apache Arrow Flight, a high-performance RPC framework designed specifically for transferring large amounts of columnar data over a network. 
+Unlike traditional JDBC/ODBC protocols, Arrow Flight eliminates the need for row-based serialization,
+significantly reducing transfer latency and increasing throughput.
+
 ## Prerequisites
 
 - Apache Spark 3.5.6
@@ -17,7 +22,7 @@ Launch the DazzleDuck server with the `example/data` directory mounted at `/data
 ```bash
 docker run -ti -v "$PWD/example/data":/local-data -p 59307:59307 -p 8080:8080 dazzleduck/dazzleduck --conf warehouse=/warehouse
 ```
-
+For DazzleDuck server Check this repo(https://github.com/dazzleduck-web/dazzleduck-sql-server)
 ### 2. Launch Spark SQL
 
 Start Spark SQL with the DazzleDuck package:
