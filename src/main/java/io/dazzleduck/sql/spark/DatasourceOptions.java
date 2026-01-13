@@ -29,17 +29,9 @@ public record DatasourceOptions(
     public static final String SCHEMA_KEY  = "schema";
     public static final String TABLE_KEY   = "table";
 
-    public static final Set<String> EXCLUDE_PROPS = Set.of(
-            IDENTIFIER_KEY,
-            URL_KEY,
-            PARTITION_COLUMNS_KEY,
-            CONNECTION_TIMEOUT
-    );
+    public static final Set<String> EXCLUDE_PROPS = Set.of(IDENTIFIER_KEY, URL_KEY, PARTITION_COLUMNS_KEY, CONNECTION_TIMEOUT);
 
-    public enum SourceType {
-        HIVE,
-        DUCKLAKE
-    }
+    public enum SourceType {HIVE, DUCKLAKE}
 
     public static DatasourceOptions parse(Map<String, String> properties) {
 
@@ -54,8 +46,7 @@ public record DatasourceOptions(
         var partitionColumnString = properties.get(PARTITION_COLUMNS_KEY);
         var timeoutString =properties.get(CONNECTION_TIMEOUT);
         if(timeoutString == null) {
-            throw new RuntimeException("%s value is required".formatted(
-            ));
+            throw new RuntimeException("%s value is required");
         }
         Duration timeout;
         try {
@@ -64,14 +55,8 @@ public record DatasourceOptions(
             throw new RuntimeException("Unable to parse timeout value %s. The formats accepted are based on the ISO-8601 duration format PnDTnHnMn.nS with days considered to be exactly 24 hours".formatted(timeoutString));
         }
 
-        List<String> partitionColumns = partitionColumnString == null
-                        ? List.of()
-                        : Arrays.stream(partitionColumnString.split(",")).toList();
-
-        SourceType sourceType =
-                (catalog != null && schema != null && table != null)
-                        ? SourceType.DUCKLAKE
-                        : SourceType.HIVE;
+        List<String> partitionColumns = partitionColumnString == null ? List.of() : Arrays.stream(partitionColumnString.split(",")).toList();
+        SourceType sourceType = (catalog != null && schema != null && table != null) ? SourceType.DUCKLAKE : SourceType.HIVE;
 
         Properties propsWithout = new Properties();
         properties.forEach((key, value) -> {

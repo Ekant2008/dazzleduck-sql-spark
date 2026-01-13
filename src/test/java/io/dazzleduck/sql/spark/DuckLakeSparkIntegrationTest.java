@@ -18,7 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-public class DuckLakeSparkArrowRPCTest {
+public class DuckLakeSparkIntegrationTest {
 
     private static SparkSession spark;
     private static Path workspace;
@@ -82,7 +82,6 @@ public class DuckLakeSparkArrowRPCTest {
         USING %s
         OPTIONS (
           url '%s',
-          identifier 'null',
           database '%s',
           schema '%s',
           table '%s',

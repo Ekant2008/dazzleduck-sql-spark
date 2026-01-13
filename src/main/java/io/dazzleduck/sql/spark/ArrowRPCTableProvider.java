@@ -41,7 +41,23 @@ public class ArrowRPCTableProvider implements TableProvider, DataSourceRegister 
     }
 
     public Identifier getIdentifier(DatasourceOptions datasourceOptions) {
-        return Identifier.of(new String[0],
-                datasourceOptions.identifier() == null? datasourceOptions.path() : datasourceOptions.identifier());
+        if (datasourceOptions.identifier() != null) {
+            return Identifier.of(new String[0], datasourceOptions.identifier());
+        }
+
+        if (datasourceOptions.path() != null) {
+            return Identifier.of(new String[0], datasourceOptions.path());
+        }
+
+        // For DuckLake sources
+        if (datasourceOptions.sourceType() == DatasourceOptions.SourceType.DUCKLAKE) {
+            String name = String.format("%s.%s.%s",
+                    datasourceOptions.catalog(),
+                    datasourceOptions.schema(),
+                    datasourceOptions.table());
+            return Identifier.of(new String[0], name);
+        }
+
+        throw new IllegalArgumentException("No identifier, path, or DuckLake coordinates provided");
     }
 }
