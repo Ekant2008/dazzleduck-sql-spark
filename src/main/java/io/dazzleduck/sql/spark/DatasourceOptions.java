@@ -55,7 +55,7 @@ public record DatasourceOptions(
             throw new RuntimeException("Unable to parse timeout value %s. The formats accepted are based on the ISO-8601 duration format PnDTnHnMn.nS with days considered to be exactly 24 hours".formatted(timeoutString));
         }
 
-        List<String> partitionColumns = partitionColumnString == null ? List.of() : Arrays.stream(partitionColumnString.split(",")).toList();
+        List<String> partitionColumns = partitionColumnString == null ? List.of() : Arrays.stream(partitionColumnString.split(",")).map(String::trim).toList();
         SourceType sourceType = (catalog != null && schema != null && table != null) ? SourceType.DUCKLAKE : SourceType.HIVE;
 
         Properties propsWithout = new Properties();
@@ -65,16 +65,19 @@ public record DatasourceOptions(
             }
         });
 
-        return new DatasourceOptions(url, identifier, path, function, partitionColumns, timeout, propsWithout, sourceType,
-                                       catalog, schema, table);
+        return new DatasourceOptions(url, identifier, path, function, partitionColumns, timeout, propsWithout, sourceType, catalog, schema, table);
     }
 
     public Map<String, String> getSourceOptions() {
-        if(path != null) {
+        if (path != null) {
             return Map.of(PATH_KEY, PathUtil.toDazzleDuckPath(path));
         }
-        if(identifier != null){
+        if (identifier != null) {
             return Map.of(IDENTIFIER_KEY, identifier);
+        }
+        if (catalog != null && schema != null && table != null) {
+            String derivedIdentifier = catalog + "." + schema + "." + table;
+            return Map.of(IDENTIFIER_KEY, derivedIdentifier);
         }
         return Map.of();
     }

@@ -9,7 +9,7 @@ significantly reducing transfer latency and increasing throughput.
 
 ## Prerequisites
 
-- Apache Spark 3.5.6
+- Apache Spark 3.5.7
 - JDK 17
 - Docker
 
@@ -54,50 +54,19 @@ SELECT * FROM t;
 
 ## Working with DuckLake
 
-If you're using DuckLake, run these commands in your startup script.
 
-### 1. Install and Load DuckLake Extension
 
+### 1. Install and Load DuckLake Extension,Using the mounted data directory:
+#### Run these commands in your startup script.
 ```sql
 INSTALL ducklake;
 LOAD ducklake;
+ATTACH 'ducklake:/warehouse/data' AS my_data (DATA_PATH '/warehouse/data');
+CREATE TABLE my_data.main.demo (key STRING,value STRING,partition INT);
+ALTER TABLE my_data.main.demo SET PARTITIONED BY (partition);
+INSERT INTO my_data.main.demo VALUES('k00', 'v00', 0),('k01', 'v01', 0),('k51', 'v51', 1),('k61', 'v61', 1);
 ```
 
-### 2. Attach DuckLake Catalog
-
-Using the mounted data directory:
-
-```sql
-ATTACH 'ducklake:/warehouse/metadata' AS my_catalog (DATA_PATH '/warehouse/data');
-```
-
-### 3. Create a Table
-
-```sql
-CREATE TABLE catalog_name.schema_name.table_name (
-  key STRING,
-  value STRING,
-  partition INT
-);
-```
-
-### 4. Configure Partitioning
-
-```sql
-ALTER TABLE catalog_name.schema_name.table_name
-SET PARTITIONED BY (partition);
-```
-
-### 5. Insert Sample Data
-
-```sql
-INSERT INTO catalog_name.schema_name.table_name
-VALUES
-  ('k00', 'v00', 0),
-  ('k01', 'v01', 0),
-  ('k51', 'v51', 1),
-  ('k61', 'v61', 1);
-```
 
 ## Querying DuckLake Tables via Spark SQL
 
@@ -115,12 +84,10 @@ At the Spark SQL prompt:
 CREATE TEMP VIEW t (key STRING, value STRING, partition INT)
 USING io.dazzleduck.sql.spark.ArrowRPCTableProvider
 OPTIONS (
-  url 'jdbc:arrow-flight-sql://localhost:33335?useEncryption=false&disableCertificateVerification=true&user=admin&password=admin',
-  database 'catalog_name',
-  schema 'schema_name',
-  table 'table_name',
-  username 'admin',
-  password 'admin',
+   url 'jdbc:arrow-flight-sql://localhost:59307?useEncryption=true&disableCertificateVerification=true&user=admin&password=admin',
+  database 'my_data',
+  schema 'main',
+  table 'demo',
   partition_columns 'partition',
   connection_timeout 'PT10M'
 );
@@ -134,7 +101,6 @@ SELECT * FROM t;
 
 ## Notes
 
-- Ensure Docker is running before starting the DazzleDuck server
 - Default credentials are `admin/admin` for both username and password
 - Connection timeouts can be adjusted based on your data size and network conditions
 - Replace `catalog_name`, `schema_name`, and `table_name` with your actual catalog, schema, and table identifiers
@@ -144,7 +110,3 @@ SELECT * FROM t;
 - **Connection refused**: Verify that the DazzleDuck server is running and the ports are correctly exposed
 - **Certificate verification errors**: Ensure `disableCertificateVerification=true` is included in the connection URL for development environments
 - **Timeout issues**: Increase the `connection_timeout` value if working with large datasets
-
-## License
-
-Please refer to the DazzleDuck project documentation for licensing information.

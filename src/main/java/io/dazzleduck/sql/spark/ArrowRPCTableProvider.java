@@ -1,7 +1,5 @@
 package io.dazzleduck.sql.spark;
 
-
-
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableProvider;
@@ -40,24 +38,30 @@ public class ArrowRPCTableProvider implements TableProvider, DataSourceRegister 
         return "arrow-kafka";
     }
 
-    public Identifier getIdentifier(DatasourceOptions datasourceOptions) {
-        if (datasourceOptions.identifier() != null) {
-            return Identifier.of(new String[0], datasourceOptions.identifier());
+    public Identifier getIdentifier(DatasourceOptions opts) {
+        // 1. Explicit identifier (CLI override)
+        if (opts.identifier() != null && !opts.identifier().isBlank()) {
+            return Identifier.of(new String[0], opts.identifier());
         }
 
-        if (datasourceOptions.path() != null) {
-            return Identifier.of(new String[0], datasourceOptions.path());
+        // 2. Path-based sources
+        if (opts.path() != null && !opts.path().isBlank()) {
+            return Identifier.of(new String[0], opts.path());
         }
 
-        // For DuckLake sources
-        if (datasourceOptions.sourceType() == DatasourceOptions.SourceType.DUCKLAKE) {
-            String name = String.format("%s.%s.%s",
-                    datasourceOptions.catalog(),
-                    datasourceOptions.schema(),
-                    datasourceOptions.table());
-            return Identifier.of(new String[0], name);
+        // 3. DuckLake auto-derivation
+        if (opts.catalog() != null && opts.schema() != null && opts.table() != null) {
+            String derivedIdentifier = opts.catalog() + "." + opts.schema() + "." + opts.table();
+            return Identifier.of(new String[0], derivedIdentifier);
         }
 
-        throw new IllegalArgumentException("No identifier, path, or DuckLake coordinates provided");
+        // 4. Fail fast with detailed error
+        String errorMsg = String.format(
+                "Cannot determine identifier. Provide identifier, path, or DuckLake database/schema/table. " +
+                        "Received: identifier=%s, path=%s, catalog=%s, schema=%s, table=%s",
+                opts.identifier(), opts.path(), opts.catalog(), opts.schema(), opts.table()
+        );
+
+        throw new IllegalArgumentException(errorMsg);
     }
 }
