@@ -14,9 +14,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 public class DuckLakeSparkIntegrationTest {
 
@@ -24,6 +28,7 @@ public class DuckLakeSparkIntegrationTest {
     private static Path workspace;
 
     private static final int PORT = 33335;
+    private static final int HTTP_PORT = 8081;
     private static final int PORT2 = 33338;
     private static final String USER = "admin";
     private static final String PASSWORD = "admin";
@@ -74,6 +79,7 @@ public class DuckLakeSparkIntegrationTest {
         FlightTestUtil.createFsServiceAnsStart(PORT);
         FlightTestUtil.createFsServiceAnsStart2(PORT2);
         createDuckLakeRPCTable(SCHEMA_DDL, RPC_TABLE, CATALOG, SCHEMA, TABLE);
+
     }
     private static void createDuckLakeRPCTable(String schemaDDL, String viewName, String catalog, String schema, String table) {
 
@@ -155,6 +161,38 @@ public class DuckLakeSparkIntegrationTest {
         var info = sqlClient.execute("select 1");
         Assertions.assertFalse(info.getEndpoints().isEmpty());
     }
+//    @Test
+//    void testDuckLakeHttp() {
+//        String sql = """
+//        CREATE TEMP VIEW ducklake_http (key STRING, value STRING, partition INT)
+//        USING %s
+//        OPTIONS (
+//          url 'http://localhost:%d',
+//          protocol 'http',
+//          database '%s',
+//          schema '%s',
+//          table '%s',
+//          username 'admin',
+//          password 'admin',
+//          partition_columns 'partition',
+//          connection_timeout 'PT10M'
+//        )
+//        """.formatted(
+//                ArrowRPCTableProvider.class.getName(),
+//                HTTP_PORT,
+//                CATALOG,
+//                SCHEMA,
+//                TABLE
+//        );
+//
+//        spark.sql(sql);
+//
+//        //spark.sql("SELECT * FROM ducklake_http").show();
+//
+//        long sparkCount = spark.sql(String.format("SELECT count(*) FROM ducklake_http")).first().getLong(0);
+//        Assertions.assertEquals(2,sparkCount);
+//    }
+//
 
     @AfterAll
     static void cleanup() {

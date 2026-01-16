@@ -34,7 +34,8 @@ public class DuckLakeQueryBuilderTest {
                 DatasourceOptions.SourceType.DUCKLAKE,
                 "my_data",    // catalog
                 "data",    // schema
-                "kv"       // table
+                "kv",
+                DatasourceOptions.Protocol.HTTP// table
         );
 
         var outputSchema = (StructType) DataType.fromDDL("key string, value string");

@@ -9,7 +9,6 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.auth2.CallHeaderAuthenticator;
 import org.apache.arrow.memory.BufferAllocator;
 import io.dazzleduck.sql.flight.server.Main;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
@@ -17,6 +16,17 @@ import java.util.List;
 
 
 public class FlightTestUtil {
+    public static void createFsServiceAnsStartHttp(int port) throws Exception {
+
+        String[] args1 = {
+                "--conf", "dazzleduck_server.http.port=" + port,
+                "--conf", "dazzleduck_server.http.authentication=jwt",
+                "--conf", "dazzleduck_server.access_mode=RESTRICTED"
+        };
+        io.dazzleduck.sql.http.server.Main.main(args1);
+        System.out.println("Running service ");
+        Thread.sleep(2000);
+    }
     public static void createFsServiceAnsStart(int port) throws Exception {
         String[] args = {
                 "--conf", "dazzleduck_server.flight_sql.port=" + port,
