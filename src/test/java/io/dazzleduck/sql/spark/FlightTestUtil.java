@@ -18,7 +18,21 @@ import java.util.List;
 
 public class FlightTestUtil {
     public static void createFsServiceAnsStart(int port) throws Exception {
-        String[] args = {"--conf", "flight-sql.port=" + port, "--conf", "useEncryption=false", "--conf", "accessMode=RESTRICTED"};
+        String[] args = {
+                "--conf", "dazzleduck_server.flight_sql.port=" + port,
+                "--conf", "dazzleduck_server.flight_sql.use_encryption=false",
+                "--conf", "dazzleduck_server.access_mode=RESTRICTED"
+        };
+        Main.main(args);
+        System.out.println("Running service ");
+        Thread.sleep(2000);
+    }
+    public static void createFsServiceAnsStart2(int port) throws Exception {
+        String[] args = {
+                "--conf", "dazzleduck_server.flight_sql.port=" + port,
+                "--conf", "dazzleduck_server.flight_sql.use_encryption=false",
+                "--conf", "dazzleduck_server.access_mode=COMPLETE"
+        };
         Main.main(args);
         System.out.println("Running service ");
         Thread.sleep(2000);

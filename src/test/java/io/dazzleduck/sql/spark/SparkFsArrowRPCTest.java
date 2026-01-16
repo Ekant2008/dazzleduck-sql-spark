@@ -1,6 +1,7 @@
 package io.dazzleduck.sql.spark;
 
 import com.typesafe.config.ConfigFactory;
+import io.dazzleduck.sql.common.Headers;
 import io.dazzleduck.sql.flight.server.auth2.AuthUtils;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -20,6 +21,7 @@ import org.testcontainers.containers.Network;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -64,8 +66,9 @@ public class SparkFsArrowRPCTest {
         minio.start();
         minioClient = MinioContainerTestUtil.createClient(minio);
         minioClient.makeBucket(MakeBucketArgs.builder().bucket(MinioContainerTestUtil.TEST_BUCKET_NAME).build());
-        localPath  = System.getProperty("user.dir") + "/example/data/parquet/spark_fs_test";
-        schemaEvolutionTablePath = System.getProperty("user.dir") + "/example/data/parquet/kv";
+   //     localPath  = System.getProperty("user.dir") + "example/data/parquet/spark_fs_test";
+        localPath = Paths.get(System.getProperty("user.dir"), "example", "data", "parquet", "spark_fs_test").toString();
+        schemaEvolutionTablePath = Paths.get(System.getProperty("user.dir"), "example", "data", "parquet", "kv").toUri().toString();
         MinioContainerTestUtil.uploadDirectory(minioClient,  MinioContainerTestUtil.TEST_BUCKET_NAME, localPath, "spark_fs_test/");
         s3Path = String.format("s3a://%s/%s", MinioContainerTestUtil.TEST_BUCKET_NAME, "spark_fs_test");
         var sc = MinioContainerTestUtil.duckDBSecretForS3Access(minio).entrySet().stream().map( e ->
@@ -77,13 +80,13 @@ public class SparkFsArrowRPCTest {
         spark = SparkInitializationHelper.createSparkSession(configWithFallback);
         DuckDBInitializationHelper.initializeDuckDB(configWithFallback);
         FlightTestUtil.createFsServiceAnsStart(port);
-
-        createLocalTable(schemaDDL, localTable, localPath);
+        String sparkPath = Paths.get(localPath).toUri().toString();
+        createLocalTable(schemaDDL, localTable, sparkPath);
         createLocalTable(schemaDDL, s3Table, s3Path);
         createLocalTable(schemaOfEvolutionTable, schemaEvolutionLocalTable, schemaEvolutionTablePath);
 
 
-        createRPCTestTable(schemaDDL, rpcLocalPathTable, localPath, "partition" );
+        createRPCTestTable(schemaDDL, rpcLocalPathTable, sparkPath, "partition" );
         createRPCTestTable(schemaDDL, rpcS3PathTable, s3Path, "partition");
         createRPCTestTable(schemaOfEvolutionTable, schemaEvolutionRpcTable, schemaEvolutionTablePath, "p");
     }
@@ -94,6 +97,7 @@ public class SparkFsArrowRPCTest {
                 "OPTIONS ( " +
                 "url '%s'," +
                 "path '%s'," +
+                "function 'read_parquet'," +
                 "username 'admin'," +
                 "password 'admin'," +
                 "partition_columns '%s'," +
@@ -179,27 +183,40 @@ public class SparkFsArrowRPCTest {
     }
 
     @Test
-    public void testRPCScan() {
+    public void testRPCScanRestricted() {
         var flightclient = FlightClient
                 .builder()
                 .allocator(new RootAllocator())
                 .location(Location.forGrpcInsecure("localhost", port))
-                .intercept(AuthUtils.createClientMiddlewareFactory("admin",
-                                "admin",
-                                Map.of())).build();
+                .intercept(AuthUtils.createClientMiddlewareFactory("admin", "admin", Map.of("path", "example/hive_table", "function", "read_parquet")))
+                .build();
 
-        var flightSqlClient = new FlightSqlClient( flightclient);
-        flightSqlClient.execute("select 1");
+        var flightSqlClient = new FlightSqlClient(flightclient);
+        flightSqlClient.execute("SELECT * FROM read_parquet('example/hive_table/*/*/*.parquet')");
     }
 
     @Test
     public void testConnectionPool() throws Exception {
-        var options = DatasourceOptions.parse(Map.of("url", url, "connection_timeout", "PT10M"));
 
-        var schema = "\"1\"  string";
+        var options = DatasourceOptions.parse(Map.of(
+                "url", url,
+                "connection_timeout", "PT10M",
+                "username", "admin",
+                "password", "admin",
+                "path", localPath,
+                "function", "read_parquet",
+                "parallelize", "true"
+        ));
+
+        // Headers should match the options
         var headers = new FlightCallHeaders();
+        headers.insert(Headers.HEADER_PATH, localPath);
+        headers.insert(Headers.HEADER_FUNCTION, "read_parquet");
         var schemaOption = new HeaderCallOption(headers);
-        var info = FlightSqlClientPool.INSTANCE.getInfo(options, "select 1", schemaOption);
+
+        // Use a query that actually works with your parquet files
+        var info = FlightSqlClientPool.INSTANCE.getInfo(options, "SELECT * FROM read_parquet('" + localPath + "/**/*.parquet')", schemaOption);
+
         Assertions.assertNotNull(info);
         try( var stream = FlightSqlClientPool.INSTANCE.getStream(options, info.getEndpoints().get(0))) {
 

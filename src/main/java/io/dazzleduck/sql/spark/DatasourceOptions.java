@@ -1,31 +1,52 @@
 package io.dazzleduck.sql.spark;
 
 import java.io.Serializable;
-import java.util.*;
 import java.time.Duration;
+import java.util.*;
 
 public record DatasourceOptions(
         String url,
         String identifier,
         String path,
+        String function,
         List<String> partitionColumns,
         Duration connectionTimeout,
-        Properties properties) implements Serializable {
+        Properties properties,
+        SourceType sourceType,
+        String catalog,
+        String schema,
+        String table
+) implements Serializable {
+
     public static final String CONNECTION_TIMEOUT = "connection_timeout";
     public static final String IDENTIFIER_KEY = "identifier";
     public static final String PATH_KEY = "path";
     public static final String URL_KEY = "url";
+    public static final String FUNCTION_KEY = "function";
     public static final String PARTITION_COLUMNS_KEY = "partition_columns";
-    public static Set<String> EXCLUDE_PROPS = Set.of(IDENTIFIER_KEY, PATH_KEY, URL_KEY, PARTITION_COLUMNS_KEY, CONNECTION_TIMEOUT);
-    public static DatasourceOptions parse(Map<String, String> properties){
-        var url = properties.get(URL_KEY);
+
+    public static final String DATABASE_KEY = "database";
+    public static final String SCHEMA_KEY  = "schema";
+    public static final String TABLE_KEY   = "table";
+
+    public static final Set<String> EXCLUDE_PROPS = Set.of(IDENTIFIER_KEY, URL_KEY, PARTITION_COLUMNS_KEY, CONNECTION_TIMEOUT);
+
+    public enum SourceType {HIVE, DUCKLAKE}
+
+    public static DatasourceOptions parse(Map<String, String> properties) {
+
+        var url        = properties.get(URL_KEY);
         var identifier = properties.get(IDENTIFIER_KEY);
-        var path = properties.get(PATH_KEY);
+        var path       = properties.get(PATH_KEY);
+        var function   = properties.get(FUNCTION_KEY);
+        var catalog = properties.get(DATABASE_KEY);
+        var schema  = properties.get(SCHEMA_KEY);
+        var table   = properties.get(TABLE_KEY);
+
         var partitionColumnString = properties.get(PARTITION_COLUMNS_KEY);
         var timeoutString =properties.get(CONNECTION_TIMEOUT);
         if(timeoutString == null) {
-            throw new RuntimeException("%s value is required".formatted(
-            ));
+            throw new RuntimeException("%s value is required");
         }
         Duration timeout;
         try {
@@ -33,21 +54,30 @@ public record DatasourceOptions(
         } catch (Exception e ){
             throw new RuntimeException("Unable to parse timeout value %s. The formats accepted are based on the ISO-8601 duration format PnDTnHnMn.nS with days considered to be exactly 24 hours".formatted(timeoutString));
         }
-        var propsWithout = new Properties();
-        properties.forEach( (key, value) -> {
-            if(!EXCLUDE_PROPS.contains(key))
+
+        List<String> partitionColumns = partitionColumnString == null ? List.of() : Arrays.stream(partitionColumnString.split(",")).map(String::trim).toList();
+        SourceType sourceType = (catalog != null && schema != null && table != null) ? SourceType.DUCKLAKE : SourceType.HIVE;
+
+        Properties propsWithout = new Properties();
+        properties.forEach((key, value) -> {
+            if (!EXCLUDE_PROPS.contains(key)) {
                 propsWithout.put(key, value);
+            }
         });
-        List<String> partitionColumns = partitionColumnString ==null? List.of(): Arrays.stream(partitionColumnString.split(",")).toList();
-        return new DatasourceOptions(url, identifier, path, partitionColumns, timeout, propsWithout);
+
+        return new DatasourceOptions(url, identifier, path, function, partitionColumns, timeout, propsWithout, sourceType, catalog, schema, table);
     }
 
     public Map<String, String> getSourceOptions() {
-        if(path != null) {
+        if (path != null) {
             return Map.of(PATH_KEY, PathUtil.toDazzleDuckPath(path));
         }
-        if(identifier != null){
+        if (identifier != null) {
             return Map.of(IDENTIFIER_KEY, identifier);
+        }
+        if (catalog != null && schema != null && table != null) {
+            String derivedIdentifier = catalog + "." + schema + "." + table;
+            return Map.of(IDENTIFIER_KEY, derivedIdentifier);
         }
         return Map.of();
     }
