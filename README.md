@@ -57,14 +57,17 @@ SELECT * FROM t;
 ### 1. Start the DazzleDuck Server
 
 Launch the DazzleDuck server :
-
 ```bash
-docker run -ti -v "$PWD/StartUpScript.sql:/startup/StartUpScript.sql" -p 59307:59307 -p 8080:8080 dazzleduck/dazzleduck --conf warehouse=/warehouse --conf startup_script_provider.script_location=/startup/StartUpScript.sql
+docker run -ti \
+  -v "$PWD/StartUpScript.sql:/startup/StartUpScript.sql" \
+  -v "$PWD/startup/data:/startup/data" \
+  -p 59307:59307 \
+  -p 8080:8080 \
+  dazzleduck/dazzleduck \
+  --conf warehouse=/warehouse \
+  --conf dazzleduck_server.startup_script_provider.script_location=/startup/StartUpScript.sql
 
 ```
-
-
-
 
 ## Querying DuckLake Tables via Spark SQL
 
@@ -101,7 +104,6 @@ SELECT * FROM t;
 
 - Default credentials are `admin/admin` for both username and password
 - Connection timeouts can be adjusted based on your data size and network conditions
-- Replace `catalog_name`, `schema_name`, and `table_name` with your actual catalog, schema, and table identifiers
 
 ## Troubleshooting
 
