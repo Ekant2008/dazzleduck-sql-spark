@@ -161,38 +161,6 @@ public class DuckLakeSparkIntegrationTest {
         var info = sqlClient.execute("select 1");
         Assertions.assertFalse(info.getEndpoints().isEmpty());
     }
-//    @Test
-//    void testDuckLakeHttp() {
-//        String sql = """
-//        CREATE TEMP VIEW ducklake_http (key STRING, value STRING, partition INT)
-//        USING %s
-//        OPTIONS (
-//          url 'http://localhost:%d',
-//          protocol 'http',
-//          database '%s',
-//          schema '%s',
-//          table '%s',
-//          username 'admin',
-//          password 'admin',
-//          partition_columns 'partition',
-//          connection_timeout 'PT10M'
-//        )
-//        """.formatted(
-//                ArrowRPCTableProvider.class.getName(),
-//                HTTP_PORT,
-//                CATALOG,
-//                SCHEMA,
-//                TABLE
-//        );
-//
-//        spark.sql(sql);
-//
-//        //spark.sql("SELECT * FROM ducklake_http").show();
-//
-//        long sparkCount = spark.sql(String.format("SELECT count(*) FROM ducklake_http")).first().getLong(0);
-//        Assertions.assertEquals(2,sparkCount);
-//    }
-//
 
     @AfterAll
     static void cleanup() {
