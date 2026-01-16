@@ -1,22 +1,11 @@
 package io.dazzleduck.sql.spark;
 
 
-import com.amazonaws.services.dynamodbv2.xspec.M;
-import com.typesafe.config.ConfigFactory;
-import org.apache.arrow.flight.FlightProducer;
-import org.apache.arrow.flight.FlightServer;
-import org.apache.arrow.flight.Location;
-import org.apache.arrow.flight.auth2.CallHeaderAuthenticator;
-import org.apache.arrow.memory.BufferAllocator;
 import io.dazzleduck.sql.flight.server.Main;
-import java.io.Closeable;
-import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.util.List;
 
 
 public class FlightTestUtil {
-    public static void createFsServiceAnsStartHttp(int port) throws Exception {
+    public static void createFsServiceAndStartHttp(int port) throws Exception {
 
         String[] args1 = {
                 "--conf", "dazzleduck_server.http.port=" + port,
@@ -27,7 +16,7 @@ public class FlightTestUtil {
         System.out.println("Running service ");
         Thread.sleep(2000);
     }
-    public static void createFsServiceAnsStart(int port) throws Exception {
+    public static void createFsServiceAndStart(int port) throws Exception {
         String[] args = {
                 "--conf", "dazzleduck_server.flight_sql.port=" + port,
                 "--conf", "dazzleduck_server.flight_sql.use_encryption=false",
@@ -37,7 +26,7 @@ public class FlightTestUtil {
         System.out.println("Running service ");
         Thread.sleep(2000);
     }
-    public static void createFsServiceAnsStart2(int port) throws Exception {
+    public static void createFsServiceAndStart2(int port) throws Exception {
         String[] args = {
                 "--conf", "dazzleduck_server.flight_sql.port=" + port,
                 "--conf", "dazzleduck_server.flight_sql.use_encryption=false",

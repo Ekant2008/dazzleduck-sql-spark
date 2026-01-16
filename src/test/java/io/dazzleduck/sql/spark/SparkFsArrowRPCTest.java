@@ -79,7 +79,7 @@ public class SparkFsArrowRPCTest {
         var configWithFallback = config.withFallback(secretsConfig);
         spark = SparkInitializationHelper.createSparkSession(configWithFallback);
         DuckDBInitializationHelper.initializeDuckDB(configWithFallback);
-        FlightTestUtil.createFsServiceAnsStart(port);
+        FlightTestUtil.createFsServiceAndStart(port);
         String sparkPath = Paths.get(localPath).toUri().toString();
         createLocalTable(schemaDDL, localTable, sparkPath);
         createLocalTable(schemaDDL, s3Table, s3Path);

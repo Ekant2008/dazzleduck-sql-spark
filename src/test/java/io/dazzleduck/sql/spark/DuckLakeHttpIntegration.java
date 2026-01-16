@@ -66,7 +66,7 @@ public class DuckLakeHttpIntegration {
 
         spark = SparkInitializationHelper.createSparkSession(config);
         DuckDBInitializationHelper.initializeDuckDB(config);
-        FlightTestUtil.createFsServiceAnsStartHttp(PORT);
+        FlightTestUtil.createFsServiceAndStartHttp(PORT);
 
 
     }

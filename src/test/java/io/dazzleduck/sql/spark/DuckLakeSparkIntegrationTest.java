@@ -2,7 +2,6 @@ package io.dazzleduck.sql.spark;
 
 import com.typesafe.config.ConfigFactory;
 import io.dazzleduck.sql.commons.ConnectionPool;
-import io.dazzleduck.sql.commons.util.TestUtils;
 import io.dazzleduck.sql.flight.server.auth2.AuthUtils;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.FlightClient;
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -76,8 +74,8 @@ public class DuckLakeSparkIntegrationTest {
 
         spark = SparkInitializationHelper.createSparkSession(config);
         DuckDBInitializationHelper.initializeDuckDB(config);
-        FlightTestUtil.createFsServiceAnsStart(PORT);
-        FlightTestUtil.createFsServiceAnsStart2(PORT2);
+        FlightTestUtil.createFsServiceAndStart(PORT);
+        FlightTestUtil.createFsServiceAndStart2(PORT2);
         createDuckLakeRPCTable(SCHEMA_DDL, RPC_TABLE, CATALOG, SCHEMA, TABLE);
 
     }
