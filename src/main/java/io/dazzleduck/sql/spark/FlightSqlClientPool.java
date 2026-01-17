@@ -9,7 +9,6 @@ import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.sql.FlightSqlClient;
-import org.apache.arrow.memory.RootAllocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +16,6 @@ import java.io.Closeable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
@@ -33,7 +31,6 @@ public enum FlightSqlClientPool implements Closeable {
     private static final Duration CLOSE_DELAY = Duration.ofMinutes(2);
     private static final Logger logger = LoggerFactory.getLogger(FlightSqlClientPool.class);
     private final Map<String, ClientAndCreationTime> cache = new ConcurrentHashMap<>();
-    private final RootAllocator allocator = new RootAllocator();
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
 
     FlightSqlClientPool() {
@@ -79,7 +76,7 @@ public enum FlightSqlClientPool implements Closeable {
         return options.url() + options.getSourceOptions()
                 .entrySet()
                 .stream()
-                .sorted()
+                .sorted(Map.Entry.comparingByKey())
                 .map(e -> e.getKey() + ":" + e.getValue())
                 .collect(Collectors.joining(","));
     }
@@ -88,16 +85,16 @@ public enum FlightSqlClientPool implements Closeable {
         var mapKey = getKey(options);
         var timeout = options.connectionTimeout();
         return cache.compute(mapKey, (key, oldValue) -> {
-            if (oldValue == null || oldValue.timestamp < System.currentTimeMillis() + timeout.toMillis()) {
+            if (oldValue == null || oldValue.timestamp + timeout.toMillis() < System.currentTimeMillis()) {
                 if (oldValue != null) {
-                    scheduledExecutorService.schedule(() -> closeClient(oldValue.flightClient), CLOSE_DELAY.toMillis(), TimeUnit.MILLISECONDS);
+                    scheduledExecutorService.schedule(() -> closeClient(oldValue), CLOSE_DELAY.toMillis(), TimeUnit.MILLISECONDS);
                 }
                 try {
-                    var connection = new ArrowFlightJdbcDriver().connect(options.url(), options.properties());
+                    var connection = (ArrowFlightConnection) new ArrowFlightJdbcDriver().connect(options.url(), options.properties());
                     var ch = getPrivateClientHandlerFromConnection(connection);
                     var sqlClient = getPrivateClientFromHandler(ch);
                     var coptions = getPrivateCallOptions(ch);
-                    return new ClientAndCreationTime(System.currentTimeMillis(), sqlClient, coptions);
+                    return new ClientAndCreationTime(System.currentTimeMillis(), sqlClient, coptions, connection);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -114,16 +111,16 @@ public enum FlightSqlClientPool implements Closeable {
                         Arrays.stream(callOptions)).toArray(CallOption[]::new));
     }
 
-    public FlightStream getStream(DatasourceOptions options, FlightEndpoint endpoint, CallOption... callOptions) throws SQLException {
+    public FlightStream getStream(DatasourceOptions options, FlightEndpoint endpoint, CallOption... callOptions) {
         var client = getClient(options);
         return client.flightClient.getStream(endpoint.getTicket(), Stream.concat(Arrays.stream(client.callOptions), Arrays.stream(callOptions)).toArray(CallOption[]::new));
     }
 
-    private void closeClient(FlightSqlClient flightClient) {
+    private void closeClient(ClientAndCreationTime client) {
         try {
-            flightClient.close();
+            client.connection().close();
         } catch (Exception e) {
-            logger.atError().setCause(e).log("ERROR closing client" + flightClient);
+            logger.atError().setCause(e).log("Error closing connection: {}", client);
         }
     }
 
@@ -134,17 +131,24 @@ public enum FlightSqlClientPool implements Closeable {
             var entry = it.next();
             ClientAndCreationTime v = entry.getValue();
             try {
-                v.flightClient().close();
+                v.connection().close();
             } catch (Exception e) {
-                // log  the exception
-                logger.atError().setCause(e).log("Error closing the connection : " + v);
+                logger.atError().setCause(e).log("Error closing connection: {}", v);
             }
             it.remove();
         }
-        allocator.close();
         scheduledExecutorService.shutdown();
+        try {
+            if (!scheduledExecutorService.awaitTermination(CLOSE_DELAY.toMillis() + 1000, TimeUnit.MILLISECONDS)) {
+                scheduledExecutorService.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduledExecutorService.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
-    record ClientAndCreationTime(long timestamp, FlightSqlClient flightClient, CallOption[] callOptions) {
+    record ClientAndCreationTime(long timestamp, FlightSqlClient flightClient, CallOption[] callOptions,
+                                     ArrowFlightConnection connection) {
     }
 }

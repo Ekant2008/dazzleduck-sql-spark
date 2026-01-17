@@ -13,11 +13,9 @@ public class SparkTestHelper {
     public static void assertEqual(SparkSession sparkSession, String expectedSql, String resultSql, boolean detailedError) {
         var expected = sparkSession.sql(expectedSql);
         var result = sparkSession.sql(resultSql);
-        Row[] e = (Row[] )expected.collect();
-        Row[] r = (Row[] )result.collect();
-        assertArrayEquals(e, r, detailedError ? String.format("\n %s\n %s\n %s\n %s",
-                expectedSql, resultSql,
-                expected.showString(20, 100, false),
-                result.showString(20, 100, false)) : "Result do not match");
+        Row[] e = (Row[]) expected.collect();
+        Row[] r = (Row[]) result.collect();
+        assertArrayEquals(e, r, detailedError ? String.format("\nExpected SQL: %s\nResult SQL: %s\nExpected rows: %d\nResult rows: %d",
+                expectedSql, resultSql, e.length, r.length) : "Result do not match");
     }
 }

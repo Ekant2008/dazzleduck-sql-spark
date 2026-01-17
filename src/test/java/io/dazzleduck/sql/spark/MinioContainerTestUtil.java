@@ -2,6 +2,8 @@ package io.dazzleduck.sql.spark;
 
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.Network;
 
@@ -17,20 +19,23 @@ import java.util.stream.Stream;
 
 public class MinioContainerTestUtil {
 
+    private static final Logger logger = LoggerFactory.getLogger(MinioContainerTestUtil.class);
+
     public static final int MINIO_S3_PORT = 9000;
     public static final int MINIO_MGMT_PORT = 9001;
-    public static String TEST_BUCKET_NAME = "test-bucket";
+    public static final String TEST_BUCKET_NAME = "test-bucket";
 
     public static Map<String, String> duckDBSecretForS3Access(MinIOContainer minio) {
         var uri = URI.create(minio.getS3URL());
-        return Map.of("TYPE", "S3",
+        return Map.of(
+                "TYPE", "S3",
                 "KEY_ID", minio.getUserName(),
                 "SECRET", minio.getPassword(),
                 "ENDPOINT", uri.getHost() + ":" + uri.getPort(),
                 "USE_SSL", "false",
-                "URL_STYLE", "path");
+                "URL_STYLE", "path"
+        );
     }
-
 
     public static MinIOContainer createContainer(String alias, Network network) {
         return new MinIOContainer("minio/minio:RELEASE.2023-09-04T19-57-37Z")
@@ -54,14 +59,13 @@ public class MinioContainerTestUtil {
         try (Stream<Path> files = Files.walk(dirPath)) {
             files.filter(Files::isRegularFile)
                     .forEach(file -> {
-                        // Convert path separators to forward slashes for S3/MinIO
                         String relativePath = dirPath.relativize(file).toString().replace("\\", "/");
                         String objectName = objectPrefix + relativePath;
                         try {
                             uploadFile(minioClient, bucketName, objectName, file.toString());
-                            System.out.println("Uploaded: " + objectName); // Debug logging
+                            logger.debug("Uploaded: {}", objectName);
                         } catch (IOException e) {
-                            System.err.println("Error uploading file: " + file + ", error: " + e.getMessage());
+                            logger.error("Error uploading file: {}", file, e);
                         }
                     });
         }

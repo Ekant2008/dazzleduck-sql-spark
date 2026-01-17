@@ -19,7 +19,7 @@ import java.util.Properties;
 public class QueryBuilderV2Test {
 
     @Test
-    public void testWithoutAggregation() throws SQLException, IOException {
+    void testWithoutAggregation() throws SQLException, IOException {
         var datasourceSchema = (StructType) DataType.fromDDL( "key string, value string, p string");
         var partitionSchema = (StructType) DataType.fromDDL("p string");
         var datasourceOptions = new DatasourceOptions("localhost", null, "example/data/parquet/kv","read_parquet", List.of("p"), Duration.ofMinutes(10), new Properties(), DatasourceOptions.SourceType.HIVE, null, null, null);

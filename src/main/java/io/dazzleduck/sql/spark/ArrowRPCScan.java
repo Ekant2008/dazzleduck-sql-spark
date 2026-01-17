@@ -1,22 +1,17 @@
 package io.dazzleduck.sql.spark;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import org.apache.arrow.flight.*;
+import org.apache.arrow.flight.FlightInfo;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.connector.metric.CustomMetric;
-import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
-import org.apache.spark.sql.connector.read.streaming.ContinuousStream;
-import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
 
-import java.sql.SQLException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-
+import java.util.Objects;
 
 public class ArrowRPCScan implements Scan, Batch {
 
@@ -25,29 +20,27 @@ public class ArrowRPCScan implements Scan, Batch {
     private final DatasourceOptions datasourceOptions;
     private final StructType outputSchema;
     private final boolean pushedAggregation;
-
     private final FlightInfo flightInfo;
+
     public ArrowRPCScan(StructType outputSchema,
                         boolean pushedAggregation,
                         StructType requiredPartitionSchema,
                         InternalRow requiredPartitions,
                         DatasourceOptions datasourceOptions,
-                        FlightInfo flightInfo){
-        this.requiredPartitionSchema = requiredPartitionSchema;
-        this.requiredPartitions = requiredPartitions;
-        this.datasourceOptions = datasourceOptions;
-        this.outputSchema = outputSchema;
+                        FlightInfo flightInfo) {
+        this.outputSchema = Objects.requireNonNull(outputSchema, "outputSchema cannot be null");
         this.pushedAggregation = pushedAggregation;
-        this.flightInfo  = flightInfo;
+        this.requiredPartitionSchema = Objects.requireNonNull(requiredPartitionSchema, "requiredPartitionSchema cannot be null");
+        this.requiredPartitions = requiredPartitions;
+        this.datasourceOptions = Objects.requireNonNull(datasourceOptions, "datasourceOptions cannot be null");
+        this.flightInfo = Objects.requireNonNull(flightInfo, "flightInfo cannot be null");
     }
-
-
 
     @Override
     public InputPartition[] planInputPartitions() {
         return Arrays.stream(withNewEndpoints(flightInfo)).map(e -> {
-                    var buffer = e.serialize();
-                    var bytes = new byte[buffer.limit()];
+                    ByteBuffer buffer = e.serialize();
+                    byte[] bytes = new byte[buffer.remaining()];
                     buffer.get(bytes);
                     return new ArrowPartition(bytes);
                 }).toArray(InputPartition[]::new);
@@ -77,37 +70,13 @@ public class ArrowRPCScan implements Scan, Batch {
 
     @Override
     public String description() {
-        return Scan.super.description();
+        return String.format("ArrowRPCScan[endpoints=%d, columns=%d]",
+                flightInfo.getEndpoints().size(), outputSchema.fields().length);
     }
 
     @Override
     public Batch toBatch() {
         return this;
-    }
-
-    @Override
-    public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-        return Scan.super.toMicroBatchStream(checkpointLocation);
-    }
-
-    @Override
-    public ContinuousStream toContinuousStream(String checkpointLocation) {
-        return Scan.super.toContinuousStream(checkpointLocation);
-    }
-
-    @Override
-    public CustomMetric[] supportedCustomMetrics() {
-        return Scan.super.supportedCustomMetrics();
-    }
-
-    @Override
-    public CustomTaskMetric[] reportDriverMetrics() {
-        return Scan.super.reportDriverMetrics();
-    }
-
-    @Override
-    public ColumnarSupportMode columnarSupportMode() {
-        return Scan.super.columnarSupportMode();
     }
 
     public boolean hasPushedAggregation() {

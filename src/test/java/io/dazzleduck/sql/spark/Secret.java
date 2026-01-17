@@ -6,7 +6,6 @@ import io.dazzleduck.sql.commons.ConnectionPool;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -16,17 +15,14 @@ import java.util.stream.Collectors;
 
 public class Secret {
 
-    public static final Pattern regex = Pattern.compile("ENC\\s*?\\((.*?)\\)");
+    private static final Pattern ENCRYPTED_VALUE_PATTERN = Pattern.compile("ENC\\s*?\\((.*?)\\)");
+    private static final String CREATE_SECRET_SQL = "CREATE SECRET %s ( %s )";
+    private static final Pattern ACCOUNT_PATTERN = Pattern.compile("^s3://([^/]+)/?$");
 
-    public static final String CREATE_SECRET_SQL =  "CREATE SECRET %s ( %s )";
-
-    public static final Pattern accountPattern = Pattern.compile(
-            "^s3://([^/]+)/?$");
-
-    public static final Set<String> SUPPORTED =
-            Set.of("KEY_ID", "SECRET", "REGION", "SCOPE", "ENDPOINT", "URL_STYLE",
-                    "USE_SSL",
-                    "URL_COMPATIBILITY_MOD");
+    public static final Set<String> SUPPORTED = Set.of(
+            "KEY_ID", "SECRET", "REGION", "SCOPE", "ENDPOINT", "URL_STYLE",
+            "USE_SSL", "URL_COMPATIBILITY_MOD"
+    );
 
     public static final Map<String, String> HADOOP_CONF_KEY_MAPPING = Map.of(
             "KEY_ID", "access.key",
@@ -43,7 +39,7 @@ public class Secret {
             "REGION", v -> v,
             "ENDPOINT", v -> v,
             "USE_SSL", v -> v,
-            "URL_STYLE", v -> v.toLowerCase(Locale.ROOT).equals("path") ? "true" : "false"
+            "URL_STYLE", v -> "path".equalsIgnoreCase(v) ? "true" : "false"
     );
 
     public static Map<String, Map<String, String>> readSecrets(Config config) {
@@ -71,36 +67,43 @@ public class Secret {
         for (var kv : secretMap.entrySet()) {
             loadSecret(connection, kv.getKey(), kv.getValue());
         }
-        ;
     }
 
     public static void loadSecret(Connection connection,
                                   String name,
                                   Map<String, String> params) throws SQLException {
-        var paramString = params.entrySet().stream().map(e -> e.getKey() + " " + "'" + e.getValue() + "'").collect(Collectors.joining(", "));
+        var paramString = params.entrySet().stream()
+                .map(e -> e.getKey() + " '" + escapeSqlString(e.getValue()) + "'")
+                .collect(Collectors.joining(", "));
         String sql = String.format(CREATE_SECRET_SQL, name, paramString);
         ConnectionPool.execute(connection, sql);
     }
 
+    private static String escapeSqlString(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("'", "''");
+    }
+
     public static String decrypt(String configValue, EncryptionProvider encryptionProvider) {
-        Matcher matcher = regex.matcher(configValue);
+        Matcher matcher = ENCRYPTED_VALUE_PATTERN.matcher(configValue);
         if (matcher.find()) {
-            // Get text inside parentheses
             var value = matcher.group(1);
             return encryptionProvider.decrypt(value);
-        } else {
-            return configValue;
         }
+        return configValue;
     }
 
     public static Map<String, String> toHadoopProperties(Map<String, String> duckDBConfig) {
         var scope = duckDBConfig.get("SCOPE");
         String scopePrefix = "";
         if (scope != null) {
-            var matcher = accountPattern.matcher(scope);
-            matcher.find();
-            var value = matcher.group(1);
-            scopePrefix = "bucket." + value + ".";
+            var matcher = ACCOUNT_PATTERN.matcher(scope);
+            if (matcher.find()) {
+                var value = matcher.group(1);
+                scopePrefix = "bucket." + value + ".";
+            }
         }
         String prefix = "fs.s3a." + scopePrefix;
         Map<String, String> result = new HashMap<>();
@@ -114,13 +117,12 @@ public class Secret {
         return result;
     }
 
-    public static interface EncryptionProvider {
-        public String encrypt(String input);
-
-        public String decrypt(String input);
+    public interface EncryptionProvider {
+        String encrypt(String input);
+        String decrypt(String input);
     }
 
-    public static EncryptionProvider PLAIN_TEXT = new EncryptionProvider() {
+    public static final EncryptionProvider PLAIN_TEXT = new EncryptionProvider() {
         @Override
         public String encrypt(String input) {
             return input;

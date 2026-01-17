@@ -9,23 +9,26 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.apache.spark.sql.connector.catalog.TableCapability.BATCH_READ;
 
 public class ArrowRPCTable implements Table, SupportsRead {
 
-    public final StructType schema;
-    public final Identifier identifier;
-    public final DatasourceOptions datasourceOptions;
+    private final StructType tableSchema;
+    private final Identifier identifier;
+    private final DatasourceOptions datasourceOptions;
+
     public ArrowRPCTable(StructType schema, Identifier identifier, DatasourceOptions datasourceOptions) {
-        this.schema = schema;
-        this.identifier = identifier;
-        this.datasourceOptions = datasourceOptions;
+        this.tableSchema = Objects.requireNonNull(schema, "schema cannot be null");
+        this.identifier = Objects.requireNonNull(identifier, "identifier cannot be null");
+        this.datasourceOptions = Objects.requireNonNull(datasourceOptions, "datasourceOptions cannot be null");
     }
+
     @Override
     public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
-        return new ArrowRPCScanBuilder(schema, datasourceOptions);
+        return new ArrowRPCScanBuilder(tableSchema, datasourceOptions);
     }
 
     @Override
@@ -35,8 +38,9 @@ public class ArrowRPCTable implements Table, SupportsRead {
 
     @Override
     public StructType schema() {
-        return schema;
+        return tableSchema;
     }
+
     @Override
     public Set<TableCapability> capabilities() {
         return EnumSet.of(BATCH_READ);
