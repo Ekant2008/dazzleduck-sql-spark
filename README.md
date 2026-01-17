@@ -59,14 +59,13 @@ SELECT * FROM t;
 Launch the DazzleDuck server :
 ```bash
 docker run -ti \
-  -v "$PWD/StartUpScript.sql:/startup/StartUpScript.sql" \
+  -v "$PWD/example/startup/start_up_script.sql:/startup/start_up_script.sql" \
   -v "$PWD/startup/data:/startup/data" \
   -p 59307:59307 \
   -p 8080:8080 \
   dazzleduck/dazzleduck \
   --conf warehouse=/warehouse \
-  --conf dazzleduck_server.startup_script_provider.script_location=/startup/StartUpScript.sql
-
+  --conf dazzleduck_server.startup_script_provider.script_location=/startup/start_up_script.sql
 ```
 
 ## Querying DuckLake Tables via Spark SQL
@@ -89,7 +88,6 @@ OPTIONS (
   database 'my_data',
   schema 'main',
   table 'demo',
-  partition_columns 'partition',
   connection_timeout 'PT10M'
 );
 ```

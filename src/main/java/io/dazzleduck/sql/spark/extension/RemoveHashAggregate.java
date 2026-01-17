@@ -7,37 +7,28 @@ import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.aggregate.HashAggregateExec;
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 
+/**
+ * Optimizer rule that removes redundant HashAggregate operations when the aggregation
+ * has already been pushed down to the ArrowRPCScan datasource.
+ */
 public class RemoveHashAggregate extends Rule<SparkPlan> {
-
-    public RemoveHashAggregate() {
-
-    }
 
     @Override
     public SparkPlan apply(SparkPlan plan) {
-        return removeHashAggregate(plan);
-    }
-
-    private SparkPlan removeHashAggregate(SparkPlan plan)  {
-        if(plan instanceof HashAggregateExec hashAggregateExec) {
-            if(hashAggregateExec.child() instanceof ProjectExec pExec) {
-                if(pExec.child() instanceof BatchScanExec bExec) {
-                    if(bExec.scan() instanceof ArrowRPCScan aScan && aScan.hasPushedAggregation()){
-                        System.out.println(plan.output());
-                        System.out.println(pExec.output());
-                        return pExec;
-                    } else {
-                        return plan;
-                    }
-                } else {
-                    return plan;
-                }
-            } else {
-                return plan;
-            }
-        } else {
+        if (!(plan instanceof HashAggregateExec hashAggregateExec)) {
             return plan;
         }
+        if (!(hashAggregateExec.child() instanceof ProjectExec projectExec)) {
+            return plan;
+        }
+        if (!(projectExec.child() instanceof BatchScanExec batchScanExec)) {
+            return plan;
+        }
+        if (!(batchScanExec.scan() instanceof ArrowRPCScan arrowScan) || !arrowScan.hasPushedAggregation()) {
+            return plan;
+        }
+        // Aggregation already pushed to datasource, remove redundant HashAggregate
+        return projectExec;
     }
 }
 

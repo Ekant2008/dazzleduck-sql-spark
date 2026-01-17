@@ -71,8 +71,8 @@ public class DuckLakeSparkIntegrationTest {
 
         spark = SparkInitializationHelper.createSparkSession(config);
         DuckDBInitializationHelper.initializeDuckDB(config);
-        FlightTestUtil.createFsServiceAnsStart(PORT);
-        FlightTestUtil.createFsServiceAnsStart2(PORT2);
+        FlightTestUtil.createFlightServiceAndStart(PORT);
+        FlightTestUtil.createFlightServiceAndStartComplete(PORT2);
         createDuckLakeRPCTable(SCHEMA_DDL, RPC_TABLE, CATALOG, SCHEMA, TABLE);
     }
     private static void createDuckLakeRPCTable(String schemaDDL, String viewName, String catalog, String schema, String table) {
@@ -87,29 +87,24 @@ public class DuckLakeSparkIntegrationTest {
           table '%s',
           username '%s',
           password '%s',
-          partition_columns 'partition',
           connection_timeout 'PT10M'
         )
         """.formatted(viewName, schemaDDL, ArrowRPCTableProvider.class.getName(), URL,
                 catalog, schema, table, USER, PASSWORD);
 
         spark.sql(sql);
-        spark.sql(String.format("select * from %s", viewName)).show();
-
     }
     @Test
-    void SparkClientDucklakeTable() {
+    void testSparkClientDucklakeTable() {
         long sparkCount = spark.sql(String.format("SELECT count(*) FROM %s", RPC_TABLE)).first().getLong(0);
-        ConnectionPool.printResult("SELECT count(*) FROM %s.%s.%s".formatted(CATALOG, SCHEMA, TABLE));
         Assertions.assertEquals(4, sparkCount);
         Assertions.assertTrue(ConnectionPool.execute("SELECT COUNT(*) FROM %s.%s.%s".formatted(CATALOG, SCHEMA, TABLE)));
     }
 
     @Test
-    void DuckLakeTableExists() {
-        var result = ConnectionPool.execute(" SELECT COUNT(*) FROM %s.%s.%s ".formatted(CATALOG, SCHEMA, TABLE));
-        System.out.println(result);
-        ConnectionPool.printResult("SELECT count(*) FROM test_ducklake.main.tt_p");
+    void testDuckLakeTableExists() {
+        var result = ConnectionPool.execute("SELECT COUNT(*) FROM %s.%s.%s".formatted(CATALOG, SCHEMA, TABLE));
+        Assertions.assertTrue(result);
     }
 
     @Test
@@ -157,7 +152,7 @@ public class DuckLakeSparkIntegrationTest {
     }
 
     @AfterAll
-    static void cleanup() {
+    static void cleanup() throws Exception {
         spark.close();
         ConnectionPool.execute("DETACH " + CATALOG);
     }

@@ -1,40 +1,30 @@
 package io.dazzleduck.sql.spark;
 
-
-import com.amazonaws.services.dynamodbv2.xspec.M;
-import com.typesafe.config.ConfigFactory;
-import org.apache.arrow.flight.FlightProducer;
-import org.apache.arrow.flight.FlightServer;
-import org.apache.arrow.flight.Location;
-import org.apache.arrow.flight.auth2.CallHeaderAuthenticator;
-import org.apache.arrow.memory.BufferAllocator;
 import io.dazzleduck.sql.flight.server.Main;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.util.List;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class FlightTestUtil {
-    public static void createFsServiceAnsStart(int port) throws Exception {
-        String[] args = {
-                "--conf", "dazzleduck_server.flight_sql.port=" + port,
-                "--conf", "dazzleduck_server.flight_sql.use_encryption=false",
-                "--conf", "dazzleduck_server.access_mode=RESTRICTED"
-        };
-        Main.main(args);
-        System.out.println("Running service ");
-        Thread.sleep(2000);
+
+    private static final Logger logger = LoggerFactory.getLogger(FlightTestUtil.class);
+    private static final long SERVICE_STARTUP_DELAY_MS = 2000;
+
+    public static void createFlightServiceAndStart(int port) throws Exception {
+        startFlightService(port, "RESTRICTED");
     }
-    public static void createFsServiceAnsStart2(int port) throws Exception {
+
+    public static void createFlightServiceAndStartComplete(int port) throws Exception {
+        startFlightService(port, "COMPLETE");
+    }
+
+    private static void startFlightService(int port, String accessMode) throws Exception {
         String[] args = {
                 "--conf", "dazzleduck_server.flight_sql.port=" + port,
                 "--conf", "dazzleduck_server.flight_sql.use_encryption=false",
-                "--conf", "dazzleduck_server.access_mode=COMPLETE"
+                "--conf", "dazzleduck_server.access_mode=" + accessMode
         };
         Main.main(args);
-        System.out.println("Running service ");
-        Thread.sleep(2000);
+        logger.info("Flight service started on port {} with access mode {}", port, accessMode);
+        Thread.sleep(SERVICE_STARTUP_DELAY_MS);
     }
 }

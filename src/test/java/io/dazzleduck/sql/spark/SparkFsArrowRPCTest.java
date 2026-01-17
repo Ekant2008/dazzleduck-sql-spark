@@ -5,9 +5,11 @@ import io.dazzleduck.sql.common.Headers;
 import io.dazzleduck.sql.flight.server.auth2.AuthUtils;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
-import org.apache.arrow.flight.*;
+import org.apache.arrow.flight.FlightCallHeaders;
+import org.apache.arrow.flight.FlightClient;
+import org.apache.arrow.flight.HeaderCallOption;
+import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.sql.FlightSqlClient;
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
@@ -16,49 +18,46 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.Network;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 public class SparkFsArrowRPCTest {
+
+    private static final Logger logger = LoggerFactory.getLogger(SparkFsArrowRPCTest.class);
+
+    private static final int PORT = 33334;
+    private static final String URL = String.format(
+            "jdbc:arrow-flight-sql://localhost:%s?useEncryption=false&disableCertificateVerification=true&user=admin&password=admin",
+            PORT);
+
+    private static final String LOCAL_TABLE = "table1";
+    private static final String S3_TABLE = "s3_table1";
+    private static final String RPC_LOCAL_PATH_TABLE = "rpc_local_path_table";
+    private static final String RPC_S3_PATH_TABLE = "rpc_s3_path_table";
+    private static final String SCHEMA_DDL = "time timestamp, key string, value string, quantity bigint, size int, price decimal(10,3), s struct<i1 int>, partition int";
+
+    private static final String SCHEMA_EVOLUTION_RPC_TABLE = "schema_evolution_rpc";
+    private static final String SCHEMA_EVOLUTION_LOCAL_TABLE = "schema_evolution_local";
+    private static final String SCHEMA_EVOLUTION_DDL = "key string, value string, nested struct< a : int, b : int, c : int>, array array<int>, p int";
+
+    private static final Network network = Network.newNetwork();
+    private static final MinIOContainer minio = MinioContainerTestUtil.createContainer("minio", network);
+
     private static SparkSession spark;
-    private static FlightServer flightServer;
-    private static final BufferAllocator bufferAllocator = new RootAllocator();
-    private static final int port = 33334;
-    private static final String url = String.format("jdbc:arrow-flight-sql://localhost:%s?useEncryption=false&disableCertificateVerification=true&user=admin&password=admin", port);
-    private static final String host = "0.0.0.0";
-    private static Closeable service;
+    private static MinioClient minioClient;
     private static String localPath;
     private static String s3Path;
-    private static final String localTable = "table1";
-    private static final String s3Table = "s3_table1";
-
-    private static final String rpcLocalPathTable = "rpc_local_path_table";
-    private static final String rpcS3PathTable = "rpc_s3_path_table";
-    private static String schemaDDL  = "time timestamp, key string, value string, quantity bigint, size int, price decimal(10,3), s struct<i1 int>, partition int";
-
-    private static final String schemaEvolutionRpcTable = "schema_evolution_rpc";
-    private static final String schemaEvolutionLocalTable = "schema_evolution_local";
-    private static final String schemaOfEvolutionTable  = "key string, value string, nested struct< a : int, b : int, c : int>, array array<int>, p int";
     private static String schemaEvolutionTablePath;
 
-    public static Network network = Network.newNetwork();
-    public static MinIOContainer minio =
-            MinioContainerTestUtil.createContainer("minio", network);
-    public static MinioClient minioClient;
-    public static String partitionColumns = "partition";
 
-
-    private static void createLocalTable(String schemaDDL,
-                                         String tableName , String path) {
-        spark.sql(String.format("CREATE TEMPORARY VIEW  %s (%s) USING parquet OPTIONS ( path  '%s')", tableName, schemaDDL, path)).show();
-        spark.sql(String.format("select * from %s", tableName)).show();
+    private static void createLocalTable(String schemaDDL, String tableName, String path) {
+        spark.sql(String.format("CREATE TEMPORARY VIEW %s (%s) USING parquet OPTIONS (path '%s')", tableName, schemaDDL, path));
     }
 
     @BeforeAll
@@ -66,58 +65,48 @@ public class SparkFsArrowRPCTest {
         minio.start();
         minioClient = MinioContainerTestUtil.createClient(minio);
         minioClient.makeBucket(MakeBucketArgs.builder().bucket(MinioContainerTestUtil.TEST_BUCKET_NAME).build());
-   //     localPath  = System.getProperty("user.dir") + "example/data/parquet/spark_fs_test";
+
         localPath = Paths.get(System.getProperty("user.dir"), "example", "data", "parquet", "spark_fs_test").toString();
         schemaEvolutionTablePath = Paths.get(System.getProperty("user.dir"), "example", "data", "parquet", "kv").toUri().toString();
-        MinioContainerTestUtil.uploadDirectory(minioClient,  MinioContainerTestUtil.TEST_BUCKET_NAME, localPath, "spark_fs_test/");
+        MinioContainerTestUtil.uploadDirectory(minioClient, MinioContainerTestUtil.TEST_BUCKET_NAME, localPath, "spark_fs_test/");
         s3Path = String.format("s3a://%s/%s", MinioContainerTestUtil.TEST_BUCKET_NAME, "spark_fs_test");
-        var sc = MinioContainerTestUtil.duckDBSecretForS3Access(minio).entrySet().stream().map( e ->
-                "{" + "key = " + e.getKey() +"," + "value = \"" + e.getValue() +  "\"}").collect(Collectors.joining(","));
-        var secretsConfigStr = String.format("secrets = { sec1 = %s}", "[" + sc + "]" );
+
+        var secretConfig = MinioContainerTestUtil.duckDBSecretForS3Access(minio).entrySet().stream()
+                .map(e -> "{key = " + e.getKey() + ", value = \"" + e.getValue() + "\"}")
+                .collect(Collectors.joining(","));
+        var secretsConfigStr = String.format("secrets = { sec1 = [%s]}", secretConfig);
         var secretsConfig = ConfigFactory.parseString(secretsConfigStr);
         var config = ConfigFactory.load();
         var configWithFallback = config.withFallback(secretsConfig);
+
         spark = SparkInitializationHelper.createSparkSession(configWithFallback);
         DuckDBInitializationHelper.initializeDuckDB(configWithFallback);
-        FlightTestUtil.createFsServiceAnsStart(port);
+        FlightTestUtil.createFlightServiceAndStart(PORT);
+
         String sparkPath = Paths.get(localPath).toUri().toString();
-        createLocalTable(schemaDDL, localTable, sparkPath);
-        createLocalTable(schemaDDL, s3Table, s3Path);
-        createLocalTable(schemaOfEvolutionTable, schemaEvolutionLocalTable, schemaEvolutionTablePath);
+        createLocalTable(SCHEMA_DDL, LOCAL_TABLE, sparkPath);
+        createLocalTable(SCHEMA_DDL, S3_TABLE, s3Path);
+        createLocalTable(SCHEMA_EVOLUTION_DDL, SCHEMA_EVOLUTION_LOCAL_TABLE, schemaEvolutionTablePath);
 
-
-        createRPCTestTable(schemaDDL, rpcLocalPathTable, sparkPath, "partition" );
-        createRPCTestTable(schemaDDL, rpcS3PathTable, s3Path, "partition");
-        createRPCTestTable(schemaOfEvolutionTable, schemaEvolutionRpcTable, schemaEvolutionTablePath, "p");
+        createRPCTestTable(SCHEMA_DDL, RPC_LOCAL_PATH_TABLE, sparkPath, "partition");
+        createRPCTestTable(SCHEMA_DDL, RPC_S3_PATH_TABLE, s3Path, "partition");
+        createRPCTestTable(SCHEMA_EVOLUTION_DDL, SCHEMA_EVOLUTION_RPC_TABLE, schemaEvolutionTablePath, "p");
     }
 
     private static void createRPCTestTable(String schema, String name, String path, String partitionColumns) {
-        String createSql = String.format("CREATE TEMP VIEW %s (%s) " +
-                "USING " + ArrowRPCTableProvider.class.getName() + " " +
-                "OPTIONS ( " +
-                "url '%s'," +
-                "path '%s'," +
-                "function 'read_parquet'," +
-                "username 'admin'," +
-                "password 'admin'," +
-                "partition_columns '%s'," +
-                "connection_timeout 'PT10M'," +
-                "parallelize 'true'" +
-                ")", name, schema, url, path, partitionColumns);
-        spark.sql(createSql);
-    }
-
-    private static void createRPCTestTableWithRemoteId(String schema, String name, String remoteIdentifier ) {
-        String createSql = String.format("CREATE TEMP VIEW %s (%s) " +
-                "USING " + ArrowRPCTableProvider.class.getName() + " " +
-                "OPTIONS ( " +
-                "url '%s'," +
-                "identifier '%s'," +
-                "username 'admin'," +
-                "password 'admin'," +
-                "partition_columns 'partition'," +
-                "connection_timeout 'PT10M'" +
-                ")", name, schema, url, remoteIdentifier);
+        String createSql = String.format("""
+                CREATE TEMP VIEW %s (%s)
+                USING %s
+                OPTIONS (
+                    url '%s',
+                    path '%s',
+                    function 'read_parquet',
+                    username 'admin',
+                    password 'admin',
+                    partition_columns '%s',
+                    connection_timeout 'PT10M',
+                    parallelize 'true'
+                )""", name, schema, ArrowRPCTableProvider.class.getName(), URL, path, partitionColumns);
         spark.sql(createSql);
     }
 
@@ -155,25 +144,25 @@ public class SparkFsArrowRPCTest {
     @ParameterizedTest
     @MethodSource("getTestSQLs")
     void testSql(String sql) {
-        test(sql, localTable, rpcLocalPathTable);
+        test(sql, LOCAL_TABLE, RPC_LOCAL_PATH_TABLE);
     }
 
     @ParameterizedTest
     @MethodSource("getTestSchemaEvolutionSQLs")
     void testSchemaEvolutionSql(String sql) {
-        test(sql, schemaEvolutionLocalTable, schemaEvolutionRpcTable);
+        test(sql, SCHEMA_EVOLUTION_LOCAL_TABLE, SCHEMA_EVOLUTION_RPC_TABLE);
     }
 
     @Test
     void testPathTable() {
         var sql = "select * from %s order by key";
-        test(sql, localTable, rpcLocalPathTable);
+        test(sql, LOCAL_TABLE, RPC_LOCAL_PATH_TABLE);
     }
 
     @Test
     void testS3Table() {
         var sql = "select * from %s order by key";
-        test(sql, s3Table, rpcS3PathTable);
+        test(sql, S3_TABLE, RPC_S3_PATH_TABLE);
     }
 
     private void test(String sql, String expectedTable, String resultTable) {
@@ -183,23 +172,22 @@ public class SparkFsArrowRPCTest {
     }
 
     @Test
-    public void testRPCScanRestricted() {
-        var flightclient = FlightClient
-                .builder()
+    void testRPCScanRestricted() {
+        var flightClient = FlightClient.builder()
                 .allocator(new RootAllocator())
-                .location(Location.forGrpcInsecure("localhost", port))
-                .intercept(AuthUtils.createClientMiddlewareFactory("admin", "admin", Map.of("path", "example/hive_table", "function", "read_parquet")))
+                .location(Location.forGrpcInsecure("localhost", PORT))
+                .intercept(AuthUtils.createClientMiddlewareFactory("admin", "admin",
+                        Map.of("path", "example/hive_table", "function", "read_parquet")))
                 .build();
 
-        var flightSqlClient = new FlightSqlClient(flightclient);
+        var flightSqlClient = new FlightSqlClient(flightClient);
         flightSqlClient.execute("SELECT * FROM read_parquet('example/hive_table/*/*/*.parquet')");
     }
 
     @Test
-    public void testConnectionPool() throws Exception {
-
+    void testConnectionPool() throws Exception {
         var options = DatasourceOptions.parse(Map.of(
-                "url", url,
+                "url", URL,
                 "connection_timeout", "PT10M",
                 "username", "admin",
                 "password", "admin",
@@ -208,33 +196,34 @@ public class SparkFsArrowRPCTest {
                 "parallelize", "true"
         ));
 
-        // Headers should match the options
         var headers = new FlightCallHeaders();
         headers.insert(Headers.HEADER_PATH, localPath);
         headers.insert(Headers.HEADER_FUNCTION, "read_parquet");
         var schemaOption = new HeaderCallOption(headers);
 
-        // Use a query that actually works with your parquet files
-        var info = FlightSqlClientPool.INSTANCE.getInfo(options, "SELECT * FROM read_parquet('" + localPath + "/**/*.parquet')", schemaOption);
+        var info = FlightSqlClientPool.INSTANCE.getInfo(
+                options, "SELECT * FROM read_parquet('" + localPath + "/**/*.parquet')", schemaOption);
 
         Assertions.assertNotNull(info);
-        try( var stream = FlightSqlClientPool.INSTANCE.getStream(options, info.getEndpoints().get(0))) {
-
+        try (var stream = FlightSqlClientPool.INSTANCE.getStream(options, info.getEndpoints().get(0))) {
             var root = stream.getRoot();
-            var batch = 0;
-            while (stream.next()){
-                    batch+=1;
-                    System.out.println(root.contentToTSVString());
+            int batchCount = 0;
+            while (stream.next()) {
+                batchCount++;
+                logger.debug("Batch {}: {}", batchCount, root.contentToTSVString());
             }
         }
     }
 
     @AfterAll
-    public static void stopAll() throws InterruptedException, IOException {
-        spark.close();
-        //flightServer.close();
-        //service.close();
-        //bufferAllocator.close();
+    public static void stopAll() throws Exception {
+        if (spark != null) {
+            spark.close();
+        }
+        if (minio != null && minio.isRunning()) {
+            minio.stop();
+        }
     }
 }
+
 

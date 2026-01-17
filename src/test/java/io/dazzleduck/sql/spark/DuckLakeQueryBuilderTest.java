@@ -8,8 +8,6 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.sql.SQLException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
@@ -19,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class DuckLakeQueryBuilderTest {
 
     @Test
-    public void testDuckLakeWithPartitionFilter() throws SQLException, IOException {
+    void testDuckLakeWithPartitionFilter() {
         var datasourceSchema = (StructType) DataType.fromDDL("key string, value string, p int");
         var partitionSchema = (StructType) DataType.fromDDL("p int");
 
@@ -59,13 +57,13 @@ public class DuckLakeQueryBuilderTest {
         );
 
         // Define the expected SQL string
-        String expectedSql = "SELECT \"key\", \"value\" FROM \n" +
+        String expectedSql = "SELECT \"key\", \"value\" FROM " +
                 "(FROM (VALUES(NULL::varchar,NULL::varchar,NULL::int)) t(\"key\", \"value\", \"p\")\n" +
                 "WHERE false\n" +
                 "UNION ALL BY NAME\n" +
-                "FROM my_data.data.kv) \n" +
-                "WHERE 1 = \"p\" \n" +
-                "limit 10";
+                "FROM my_data.data.kv) " +
+                "WHERE 1 = \"p\" " +
+                "LIMIT 10";
 
         // Use assert instead of sout
         assertEquals(expectedSql.trim(), sql.trim(), "The generated SQL does not match the expected output.");

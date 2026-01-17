@@ -12,8 +12,9 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
-public class ArrowPartitionReaderFactory implements PartitionReaderFactory {
+public class ArrowPartitionReaderFactory implements PartitionReaderFactory, Serializable {
 
     private final StructType requiredPartitionSchema;
     private final InternalRow requiredPartitions;
@@ -25,25 +26,26 @@ public class ArrowPartitionReaderFactory implements PartitionReaderFactory {
             StructType requiredPartitionSchema,
             InternalRow requiredPartitions,
             DatasourceOptions datasourceOptions) {
-        this.requiredPartitionSchema = requiredPartitionSchema;
+        this.outputSchema = Objects.requireNonNull(outputSchema, "outputSchema cannot be null");
+        this.requiredPartitionSchema = Objects.requireNonNull(requiredPartitionSchema, "requiredPartitionSchema cannot be null");
         this.requiredPartitions = requiredPartitions;
-        this.datasourceOptions = datasourceOptions;
-        this.outputSchema = outputSchema;
-    }
-    @Override
-    public PartitionReader<InternalRow> createReader(InputPartition partition) {
-        throw new RuntimeException("Row reader in not supported");
+        this.datasourceOptions = Objects.requireNonNull(datasourceOptions, "datasourceOptions cannot be null");
     }
 
     @Override
-    public PartitionReader<ColumnarBatch> createColumnarReader(InputPartition partition)  {
-        ArrowPartition partition1 = (ArrowPartition) partition;
-        var buffer = ByteBuffer.wrap(partition1.bytes());
+    public PartitionReader<InternalRow> createReader(InputPartition partition) {
+        throw new UnsupportedOperationException("Row reader is not supported, use columnar reader");
+    }
+
+    @Override
+    public PartitionReader<ColumnarBatch> createColumnarReader(InputPartition partition) {
+        ArrowPartition arrowPartition = (ArrowPartition) partition;
+        ByteBuffer buffer = ByteBuffer.wrap(arrowPartition.bytes());
         FlightInfo flightInfo;
         try {
-             flightInfo = FlightInfo.deserialize(buffer);
+            flightInfo = FlightInfo.deserialize(buffer);
         } catch (IOException | URISyntaxException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException("Failed to deserialize FlightInfo from partition", e);
         }
         return new ArrowRpcReader(flightInfo, outputSchema, requiredPartitionSchema, requiredPartitions, datasourceOptions);
     }
@@ -53,7 +55,3 @@ public class ArrowPartitionReaderFactory implements PartitionReaderFactory {
         return true;
     }
 }
-record ArrowPartition(byte[] bytes) implements InputPartition, Serializable {
-
-}
-
