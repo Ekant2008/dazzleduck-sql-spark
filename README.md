@@ -9,9 +9,33 @@ significantly reducing transfer latency and increasing throughput.
 
 ## Prerequisites
 
-- Apache Spark 3.5.7
+- Apache Spark 3.5.x or 4.x
 - JDK 17
 - Docker
+
+## Supported Spark Versions
+
+This library supports both Apache Spark 3.5.x and 4.x. Use Maven profiles to build for your target version:
+
+| Profile | Spark Version | Jackson | Hadoop |
+|---------|---------------|---------|--------|
+| Default | 4.1.1 | 2.20.1 | 3.4.2 |
+| `spark-3_5` | 3.5.8 | 2.15.2 | 3.3.4 |
+
+**Build for Spark 4.x (default):**
+```bash
+mvn clean package
+```
+
+**Build for Spark 3.5.x:**
+```bash
+mvn clean package -Pspark-3_5
+```
+
+**Run tests with specific profile:**
+```bash
+mvn test -Pspark-3_5
+```
 
 ## Getting Started
 

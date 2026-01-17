@@ -146,6 +146,14 @@
     </dependencies>
     <profiles>
         <profile>
+            <id>spark-3_5</id>
+            <properties>
+                <spark.version>3.5.8</spark.version>
+                <jackson.version>2.15.2</jackson.version>
+                <hadoop.version>3.3.4</hadoop.version>
+            </properties>
+        </profile>
+        <profile>
             <id>release-sign-artifacts</id>
             <activation>
                 <property>
