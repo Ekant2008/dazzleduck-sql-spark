@@ -43,6 +43,20 @@
         <dazzleduck.version>0.0.14</dazzleduck.version>
         <netty.version>4.2.7.Final</netty.version>
     </properties>
+    <!-- DEPENDENCY MANAGEMENT - Single Netty Version -->
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>io.dazzleduck.sql</groupId>
@@ -122,26 +136,22 @@
             <version>${hadoop.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- Force Netty version alignment with Spark 4.x -->
+        <!-- Force Netty version alignment with Spark 4.x - Versions managed by netty-bom -->
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-buffer</artifactId>
-            <version>${netty.version}</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-common</artifactId>
-            <version>${netty.version}</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport</artifactId>
-            <version>${netty.version}</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-handler</artifactId>
-            <version>${netty.version}</version>
         </dependency>
     </dependencies>
     <profiles>
