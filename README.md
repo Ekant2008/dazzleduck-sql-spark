@@ -52,7 +52,7 @@ For DazzleDuck server Check this repo(https://github.com/dazzleduck-web/dazzledu
 Start Spark SQL with the DazzleDuck package:
 
 ```bash
-bin/spark-sql --packages io.dazzleduck.sql:dazzleduck-sql-spark:0.0.4
+bin/spark-sql --packages io.dazzleduck.sql:dazzleduck-sql-spark:0.0.16
 ```
 
 ### 3. Create a Temporary View
@@ -83,13 +83,11 @@ SELECT * FROM t;
 Launch the DazzleDuck server :
 ```bash
 docker run -ti \
-  -v "$PWD/example/startup/start_up_script.sql:/startup/start_up_script.sql" \
-  -v "$PWD/startup/data:/startup/data" \
   -p 59307:59307 \
   -p 8080:8080 \
   dazzleduck/dazzleduck \
   --conf warehouse=/warehouse \
-  --conf dazzleduck_server.startup_script_provider.script_location=/startup/start_up_script.sql
+  --conf dazzleduck_server.startup_script_provider.script_location=/startup/ducklake.sql
 ```
 
 ## Querying DuckLake Tables via Spark SQL
@@ -97,7 +95,7 @@ docker run -ti \
 ### 2. Start Spark SQL
 
 ```bash
-bin/spark-sql --packages io.dazzleduck.sql:dazzleduck-sql-spark:0.0.4
+bin/spark-sql --packages io.dazzleduck.sql:dazzleduck-sql-spark:0.0.16
 ```
 
 ### 3. Create a Temporary View for DuckLake
